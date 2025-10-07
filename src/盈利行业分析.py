@@ -133,7 +133,7 @@ for i, col in enumerate(['min_close', 'median_close', 'max_close']):
     axes[i].scatter(np.log10(return_df[col]), return_df['CAGR [%]'], s=2, alpha=0.5)
     axes[i].set_title(f'{col} vs CAGR')
     axes[i].set_xlim(0, 5)
-
+fig.savefig('price_vs_cagr.png')
 
 # %%
 fig, axes = plt.subplots(2, 1, figsize=(10, 10))
@@ -155,6 +155,8 @@ axes[1].set_xlabel(f'Live Years ({grouped_year} years per unit)')
 axes[1].set_ylabel('CAGR Mean [%]')
 axes[1].set_xticks(grouped_by_live_year['live_year'], labels=[f'{x*grouped_year}-{(x+1)*grouped_year}' for x in grouped_by_live_year['live_year']])
 axes[1].axhline(0, color='gray', linestyle='--')
+plt.tight_layout()
+fig.savefig('live_year_vs_cagr.png')
 # %%
 return_by_jnyiso = return_df.group_by('jnyiso').agg(
     pc('CAGR [%]').mean().alias('CAGR_mean'),
@@ -191,7 +193,7 @@ return_grouped_by_industry = return_df.with_columns(
     
 ).sort('ret_ann_med', descending=True).filter(
     pc('stock_count') >= 5,
-)
+).drop_nulls()
 with pl.Config(tbl_rows=1000, tbl_cols=1000):
     print(return_grouped_by_industry)
 return_grouped_by_industry
@@ -211,6 +213,7 @@ for i, chunk in enumerate(chunks):
     axes[i].set_title(f'行业年化收益率中位数 (分组 {i+1}/{split_rows})')
     axes[i].axhline(0, color='gray', linestyle='--')
 plt.tight_layout()
+fig.savefig('industry_ret_ann_med.png')
 # %%
 return_grouped_by_province = return_df.with_columns(
     ret_diff_ann = (pc('Return [%]') + buy_hold_ret) / pc('Duration') * 365,
@@ -227,7 +230,7 @@ return_grouped_by_province = return_df.with_columns(
 
 ).sort('ret_ann_med', descending=True).filter(
     pc('stock_count') >= 5,
-)
+).drop_nulls()
 with pl.Config(tbl_rows=1000, tbl_cols=1000):
     print(return_grouped_by_province)
 # %%
@@ -246,7 +249,7 @@ for i, chunk in enumerate(chunks):
     axes[i].set_title(f'省份年化收益率中位数 (分组 {i+1}/{split_rows})')
     axes[i].axhline(0, color='gray', linestyle='--')
 plt.tight_layout()
-
+fig.savefig('province_ret_ann_med.png')
 # %%
 plt.hist(return_grouped_by_industry['ret_diff_ann'], bins=100)
 # %%

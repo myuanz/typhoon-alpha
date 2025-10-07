@@ -27,7 +27,6 @@ from typing import (
     TypeVar,
     cast,
 )
-import polars_talib as plta
 
 import akshare as ak
 import lightgbm as lgb
@@ -37,6 +36,7 @@ import numpy as np
 import orjson
 import pandas as pd
 import polars as pl
+import polars_talib as plta
 import statsmodels.api as sm
 import tushare as ts
 import tyro
@@ -52,11 +52,8 @@ from sklearn.preprocessing import StandardScaler
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 from tqdm import tqdm
 from tushare.pro.client import DataApi
+
 from typhoon_strategy import TyphoonEventStrategy
-from utils_typhoon import flat_typhoon_df, load_baidu_idnex, load_typhoon_df
-
-
-
 from utils import (
     cache_df,
     fetch_all_stock_list,
@@ -66,6 +63,8 @@ from utils import (
     to_pl_wrapper,
     with_try_wrapper,
 )
+from utils_typhoon import flat_typhoon_df, load_baidu_idnex, load_typhoon_df
+
 
 def unwrap[T](x: T|None) -> T:
     assert x is not None
@@ -94,15 +93,15 @@ class Args:
     '''万6'''
 
     mkt_x_cols: Sequence[str] = (
-        'uhvg',
-        'ufig',
-        'ilye',
+        '上证',
+        '深成',
+        '创业',
     )
 
     resid_x_cols: Sequence[str] = (
-        'uhvg',
-        'ufig',
-        'ilye',
+        '上证',
+        '深成',
+        '创业',
         'speed',
         'china_score',
         'index-台风',
@@ -192,21 +191,21 @@ class TdfgAnalyze:
 
         self.深成指数_pct = fetch_daily_bar('399001.SZ', '20050101', ta.args.end_date, is_index=True).select(
             'date',
-            ufig='pct_chg',
-            ufig_rsi14=plta.rsi(pc('close'), timeperiod=14).fill_nan(0),
-            ufig_close=pc('close')
+            深成='pct_chg',
+            深成_rsi14=plta.rsi(pc('close'), timeperiod=14).fill_nan(0),
+            深成_close=pc('close')
         )
         self.创业板指_pct = fetch_daily_bar('399006.SZ', '20050101', ta.args.end_date, is_index=True).select(
             'date',
-            ilye='pct_chg',
-            ilye_rsi14=plta.rsi(pc('close'), timeperiod=14).fill_nan(0),
-            ilye_close=pc('close')
+            创业='pct_chg',
+            创业_rsi14=plta.rsi(pc('close'), timeperiod=14).fill_nan(0),
+            创业_close=pc('close')
         )
         self.上证指数_pct = fetch_daily_bar('000001.SH', '20050101', ta.args.end_date, is_index=True).select(
             'date',
-            uhvg='pct_chg',
-            uhvg_rsi14=plta.rsi(pc('close'), timeperiod=14).fill_nan(0),
-            uhvg_close=pc('close')
+            上证='pct_chg',
+            上证_rsi14=plta.rsi(pc('close'), timeperiod=14).fill_nan(0),
+            上证_close=pc('close')
         )
 
     def regression_market(self, df: pl.DataFrame, x_cols: Iterable[str], print_summary: bool|None=None, train_on_next_day: bool=True) -> RegressionResultsWrapper:
@@ -428,7 +427,7 @@ class TdfgAnalyze:
         stats: pd.Series,
         output_dir: Path|None=None
     ):
-        # print(f'{ohlcv_df=}')
+        print(f'{ohlcv_df=}')
         # print(f'{ohlcv_df.columns=}')
         r2_mkt = self.regression_market(ohlcv_df, x_cols=self.args.mkt_x_cols).rsquared
         r2_mkt_with_tdfg = self.regression_market(ohlcv_df, x_cols=self.args.resid_x_cols).rsquared
@@ -528,9 +527,9 @@ class TdfgAnalyze:
         if ohlcv_df is None:
             return
 
-        # thr_range = np.arange(1.0, 2.5, 0.01)
-        # thr_df = self.iter_speed_threshold_for_regression(ohlcv_df, thr_range, resid_x_cols=self.args.resid_x_cols, min_sample_days=self.args.min_days_for_training, output_dir=output_dir)
-        thr_df = None
+        thr_range = np.arange(0.5, 2.0, 0.01)
+        thr_df = self.iter_speed_threshold_for_regression(ohlcv_df, thr_range, resid_x_cols=self.args.resid_x_cols, min_sample_days=self.args.min_days_for_training, output_dir=output_dir)
+        # thr_df = None
         # if thr_df is None:
         #     raise Exception('training data is too short')
 
@@ -561,7 +560,7 @@ class TdfgAnalyze:
         all_metrics = self.collect_all_metrics(
             stock_name=output_dir.name,
             ts_code=ts_code,
-            ohlcv_df=ohlcv_df,
+            ohlcv_df=ohlcv_df.filter(pc('speed') >= best_speed_thr),
             bt_metrics=metrics_by_period,
             thr_df=thr_df,
             stats=bt_stats,
@@ -578,32 +577,32 @@ if __name__ == '__main__':
         # end_date = '20250926',
         # stock_list = 'fgdm',
         stock_list='all',
-        # print_summary=True,
+        print_summary=True,
         draw_plots=True,
         # write_plots=True,
 
 
         mkt_x_cols = (
-            'uhvg', 
-            'ufig', 
-            'ilye',
+            '上证', 
+            '深成', 
+            '创业',
             'fgdm_rsi14',
 
-            'uhvg_rsi14',
-            'ufig_rsi14',
-            'ilye_rsi14',
+            # '上证_rsi14',
+            # '深成_rsi14',
+            # '创业_rsi14',
 
         ),
 
         resid_x_cols = (
-            'uhvg',
-            'ufig',
-            'ilye',
+            '上证',
+            '深成',
+            '创业',
 
             'fgdm_rsi14',
-            'uhvg_rsi14',
-            'ufig_rsi14',
-            'ilye_rsi14',
+            # '上证_rsi14',
+            # '深成_rsi14',
+            # '创业_rsi14',
 
             'speed',
             'china_score',
@@ -615,7 +614,7 @@ if __name__ == '__main__':
     ))
     ta.prepare_global_data()
 
-    all_metrics, bt_df, bt, bt_stats = unwrap(ta.process_stock('603218.SH', ta.args.result_dir / 'test'))
+    all_metrics, bt_df, bt, bt_stats = unwrap(ta.process_stock('836961.BJ', ta.args.result_dir / 'test'))
     print(bt_stats)
     print('sqn=', bt_stats['SQN'])
 # %%
@@ -629,14 +628,14 @@ if __name__ == '__main__':
 #         ohlcv_df
     
 #         x_cols = [
-#             'uhvg', 
-#             'ufig', 
-#             'ilye',
+#             '上证', 
+#             '深成', 
+#             '创业',
 #             'fgdm_rsi14',
 
-#             'uhvg_rsi14',
-#             'ufig_rsi14',
-#             'ilye_rsi14',
+#             '上证_rsi14',
+#             '深成_rsi14',
+#             '创业_rsi14',
 #         ]
 
 #         X = sm.add_constant(ohlcv_df[x_cols].to_pandas())
@@ -646,14 +645,14 @@ if __name__ == '__main__':
 #         # print('mkt_model', model.summary())
 
 #         x_cols = [
-#             'uhvg',
-#             'ufig',
-#             'ilye',
+#             '上证',
+#             '深成',
+#             '创业',
 
 #             'fgdm_rsi14',
-#             'uhvg_rsi14',
-#             'ufig_rsi14',
-#             'ilye_rsi14',
+#             '上证_rsi14',
+#             '深成_rsi14',
+#             '创业_rsi14',
 
 #             'speed',
 #             'china_score',

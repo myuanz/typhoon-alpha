@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from functools import cache, lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Literal, TypedDict, cast, overload
-
+import numpy as np
 import duckdb
 import matplotlib.pyplot as plt
 import polars as pl
@@ -29,7 +29,8 @@ from utils import (
     with_try_wrapper,
 )
 
-
+def softmax(x: np.ndarray, base: float = 10) -> np.ndarray:
+    return np.exp(x / np.max(x) * np.log(base)) / np.sum(np.exp(x / np.max(x) * np.log(base)))
 def unwrap[T](v: T | None) -> T:
     if v is None:
         raise ValueError('unwrap None')
@@ -287,7 +288,7 @@ trades_df = not_limit(trades_df, mkt_df)
 print(trades_df.shape)
 stat_df(trades_df.filter(
     pc('EntryPrice') < 50,
-    # pc('EntryPrice') > 5,
+    pc('EntryPrice') > 5,
     
     pc('name').str.contains('ST').not_()
 ))
@@ -420,6 +421,7 @@ for top_k in range(1, 11, 1):
 
         # pc('rk_amount') > 0.8,
         # pc('ps') < 5,
+        pc('name').str.contains('ST').not_(),
     ).group_by('EntryTime').agg(
         pl.len().alias('num_trades'),
         # pl.all(),
@@ -438,6 +440,8 @@ for top_k in range(1, 11, 1):
         pc('ret_5'),
         pc('total_mv'),
         pc('ReturnPct').list.mean(),
+        pc('std5_pct_chg'),
+        pc('adv20'),
     ).sort('EntryTime').collect()
     # print(f'[{top_k}]', r['ReturnPct'].sum(), stat_df(r).to_dicts()[0])
     res.append({
@@ -449,7 +453,7 @@ for top_k in range(1, 11, 1):
 with pl.Config(tbl_cols=100, tbl_rows=21, float_precision=2):
     print(pl.DataFrame(res).sort('top_k'))
 # %%
-r = rdfs[6].select(pl.all())
+r = rdfs[5].select(pl.all())
 
 for row in r.tail(30).iter_rows(named=True):
     s = f'[{row["EntryTime"]}] {row["ReturnPct"]: 1.2%}| in{row["num_trades"]:> 4d} | '
@@ -481,6 +485,7 @@ sns.violinplot(
     inner='quartile',
 )
 plt.axhline(0, color='red', linestyle='--', linewidth=1)
+plt.savefig('month-ret-violin.png')
 # %%
 r = trades_df.lazy().join(
     mkt_df.lazy(),
@@ -510,6 +515,7 @@ for draw_col, ax in zip(draw_cols, axes):
     ax.scatter(r[draw_col], r['ReturnPct'], alpha=0.1, s=1)
     ax.set_title(draw_col)
 # plt.tight_layout()
+fig.savefig('factors-ret-scatter.png')
 # %%
 draw_cols = ['rk_turnover_rate', 'rk_adv20']
 
@@ -762,9 +768,15 @@ for curr_day in tqdm(all_trade_days):
         # print(curr_trade_list)
         if curr_trade_list['EntryTime'] != curr_day + timedelta(days=1):
             stock_len = 0
+            股票投入资金比例 = []
         else:
             stock_len = len(curr_trade_list['ts_code'])
             trade_idx += 1
+            股票投入资金比例 = softmax(-np.array(curr_trade_list['ret_5'])+1e-6)
+            股票投入资金比例 = softmax((np.array(curr_trade_list['std5_pct_chg']))+1e-6)
+
+            # 股票投入资金比例 = [1/stock_len] * stock_len
+
     else:
         curr_trade_list = TradeList(
             EntryTime=curr_day + timedelta(days=1),
@@ -778,9 +790,11 @@ for curr_day in tqdm(all_trade_days):
             ReturnPct=0.0,
         )
         stock_len = 0
+        股票投入资金比例 = []
+
 
     for i in range(stock_len):
-        single_stock_available_cash = cash * single_day_open_size / stock_len
+        single_stock_available_cash = cash * single_day_open_size * 股票投入资金比例[i]
         ts_code = curr_trade_list['ts_code'][i]
         name = curr_trade_list['name'][i]
         today_close = unwrap(mkt_finder.find_mkt(curr_day, ts_code, 'close'))
@@ -870,8 +884,11 @@ with pl.Config(tbl_cols=100, tbl_rows=21, float_precision=4):
 
 print(f'final return_pct: {(cash_curve[-1]["equity"] / cash_init - 1) * 100:1.2f}%')
 cash_curve_df = pl.DataFrame(cash_curve)
+plt.figure(figsize=(12, 6))
 plt.plot(cash_curve_df['date'], cash_curve_df['equity'] / cash_init)
-
+plt.title(f'Equity Curve, final return {(cash_curve[-1]["equity"] / cash_init - 1) * 100:1.2f}%')
+plt.xlabel('Date')
+plt.savefig('equity-curve.png')
 # %%
 unmatched_orders, unclosed_trades, len(finished_trades)
 

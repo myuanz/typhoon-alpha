@@ -1,5 +1,7 @@
-from backtesting import Strategy
 import datetime
+
+from backtesting import Strategy
+
 
 class TyphoonEventStrategy(Strategy):
     min_p: float = 0.5
@@ -8,7 +10,7 @@ class TyphoonEventStrategy(Strategy):
 
     def init(self):
         self.last_open_dt = self.data.index[0]
-        self.I(lambda : self.data.uhvg_close, name='上证', overlay=False)
+        self.I(lambda : self.data.上证_close, name='上证', overlay=False)
         self.I(lambda : self.data.fgdm_pred_total, name='pred', overlay=False)
         for key in ['index-台风', 'index-台风路径', 'index-暴雨', 'index-暴雨预警', 'speed']:
             self.I(lambda : self.data[f'{key}'], name=key, overlay=False)
