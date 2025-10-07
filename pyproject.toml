@@ -8,12 +8,14 @@ dependencies = [
     "akshare>=1.17.63",
     "backtesting>=0.6.5",
     "duckdb>=1.4.0",
+    "fastexcel>=0.16.0",
     "lightgbm>=4.6.0",
     "matplotlib>=3.10.6",
     "numpy>=2.3.3",
     "orjson>=3.11.3",
     "polars>=1.34.0",
     "polars-talib>=0.1.5",
+    "pyarrow>=21.0.0",
     "scikit-learn>=1.7.2",
     "seaborn>=0.13.2",
     "statsmodels>=0.14.5",
@@ -21,6 +23,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "tushare>=1.4.24",
     "tyro>=0.9.32",
+    "xlsxwriter>=3.2.9",
     "zhplot>=1.0.0",
 ]
 
